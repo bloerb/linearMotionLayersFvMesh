@@ -1,0 +1,8 @@
+#!/bin/bash
+
+m4 cylinderMesh.m4 > system/blockMeshDict
+
+blockMesh
+moveDynamicMesh
+
+# ----------------------------------------------------------------- end-of-file

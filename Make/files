@@ -1,0 +1,4 @@
+topoChangerFvMesh/topoChangerFvMesh.C
+linearMotionLayersFvMesh.C
+
+LIB = $(FOAM_USER_LIBBIN)/libtopoChangerFvMesh

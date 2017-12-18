@@ -1,0 +1,41 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  3.0.0                                 |
+|   \\  /    A nd           | Web:      www.OpenFOAM.org                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      dynamicMeshDict;
+}
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dynamicFvMeshLibs ( "libtopoChangerFvMesh.so" );
+ 
+dynamicFvMesh linearMotionLayersFvMesh;
+
+linearMotionLayersFvMeshCoeffs
+{
+	layer
+	{
+	   patch inlet;
+    	   minThickness 0.001;
+    	   maxThickness 0.0021;
+	}
+
+vel table
+(       
+    (0     0.0)       
+    (0.1   0.1) 
+    (0.5   0.1)  
+);
+}
+
+
+// ************************************************************************* //
