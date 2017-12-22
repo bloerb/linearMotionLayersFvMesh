@@ -53,7 +53,7 @@ class linearMotionLayersFvMesh
 {
     // Private data
 
-        //- Motion dictionary
+        //- Motion dictionary - dynamicMeshDict
         dictionary motionDict_;
 
     // Private Member Functions
@@ -69,6 +69,9 @@ class linearMotionLayersFvMesh
 
         //- Make layering modifiers live
         void makeLayersLive();
+
+        //- balance mesh between processors
+        void balance();
 
         //- Return new point field
         tmp<pointField> newPoints() const;

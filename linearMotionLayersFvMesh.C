@@ -34,10 +34,9 @@ License
 #include "IOdictionary.H"
 #include "Function1.H"
 
-/* Load balancing
-#include "mapDistributePolyMesh.H"
 #include "fvMeshDistribute.H"
-*/
+#include "mapDistributePolyMesh.H"
+
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
 namespace Foam
@@ -56,6 +55,7 @@ namespace Foam
 
 void Foam::linearMotionLayersFvMesh::addZonesAndModifiers()
 {
+    // done once at start up
     // Check if point/face/cellZones or a meshModifier are present in polyMesh directory
     if
     (
@@ -88,19 +88,20 @@ void Foam::linearMotionLayersFvMesh::addZonesAndModifiers()
     // read patch name from dynamicMeshDict
     const word layerPatchName
     (
-        motionDict_.subDict("layer").lookup("patch")
+        motionDict_.lookup("patch")
     );
 
     // create Face Zone for patch
+    // create Patch for reading faces
     const polyPatch& layerPatch = boundaryMesh()[layerPatchName];
-
+    // initilize empty layer patch face list
     labelList lpf(layerPatch.size());
-    // read all patch faces
+    // add all patch faces
     forAll(lpf, i)
     {
         lpf[i] = layerPatch.start() + i;
     }
-
+    // create faceZone
     fz[0] = new faceZone
     (
         "pistonFaceZone",
@@ -125,21 +126,15 @@ void Foam::linearMotionLayersFvMesh::addZonesAndModifiers()
             0,
             topoChanger_,
             "pistonFaceZone",
-            readScalar
-            (
-                motionDict_.subDict("layer").lookup("minThickness")
-            ),
-            readScalar
-            (
-                motionDict_.subDict("layer").lookup("maxThickness")
-            )
+            readScalar (motionDict_.lookup("minThickness")),
+            readScalar (motionDict_.lookup("maxThickness"))
         );
 
     // adding it to polyMesh folder
     Info<< "Adding topology modifiers" << endl;
     topoChanger_.addTopologyModifiers(tm);
 
-    // Write mesh
+    // Write modifications to mesh
     write();
 }
 
@@ -165,24 +160,63 @@ void Foam::linearMotionLayersFvMesh::makeLayersLive()
     }
 }
 
+void Foam::linearMotionLayersFvMesh::balance()
+{
+    // redistributing part
+    autoPtr<mapDistributePolyMesh> distMap;
+
+    if (Pstream::nProcs() > 1)
+    {
+        scalar nIdealCells =
+            topoChanger_.mesh().globalData().nTotalCells()
+          / Pstream::nProcs();
+
+        scalar unbalance = returnReduce
+        (
+            mag(1.0-topoChanger_.mesh().nCells()/nIdealCells),
+            maxOp<scalar>()
+        );
+
+        if (unbalance <= 0.5)
+        {
+            Info<< "Skipping balancing since max unbalance " << unbalance
+                << " is less than allowable arbitrarly set 0.5"
+                << endl;
+        }
+        else
+        {
+            Info << "Will now distribute all mesh cells to processor 0" << endl;
+
+            //labelList decomposition (topoChanger_.mesh().nCells(), 0);
+            //const scalar tolDim = 1e-6*topoChanger_.mesh().bounds().mag();
+            //fvMeshDistribute distributor(topoChanger_.mesh(), tolDim);
+            //distMap = distributor.distribute(decomposition);
+
+            //Info << "Successfully distributed mesh to processor 0 for testing purpose" << endl;
+        }
+    }
+    // end redistribution
+}
+
 Foam::tmp<Foam::pointField> Foam::linearMotionLayersFvMesh::newPoints() const
 {
+    // temporary field for the new point position
     tmp<pointField> tnewPoints
     (
         new pointField(points())
     );
     
     pointField& np = tnewPoints.ref();
-
+    // lookup patch name and add patch points
     const word layerPatchName
     (
-        motionDict_.subDict("layer").lookup("patch")
+        motionDict_.lookup("patch")
     );
 
     const polyPatch& layerPatch = boundaryMesh()[layerPatchName];
 
     const labelList& patchPoints = layerPatch.meshPoints();
-
+    // movement velocity amplitude, read as Function1 type from dynamicMeshDict
     autoPtr<Function1<scalar>> vel
     (
         Function1<scalar>::New
@@ -191,9 +225,9 @@ Foam::tmp<Foam::pointField> Foam::linearMotionLayersFvMesh::newPoints() const
             motionDict_
         )
     );    
-    
+    // face normals for movement direction
     const vectorField& nHat = layerPatch.pointNormals();
-    
+    // move points
     forAll(patchPoints, ppI)
     {
         np[patchPoints[ppI]] += -nHat[ppI]*vel().value(time().value())*time().deltaTValue();
@@ -223,7 +257,7 @@ Foam::linearMotionLayersFvMesh::linearMotionLayersFvMesh(const IOobject& io)
                 IOobject::NO_WRITE,
                 false
             )
-        ).subDict(typeName + "Coeffs")
+        )
     )
 {
     addZonesAndModifiers();
@@ -245,43 +279,7 @@ bool Foam::linearMotionLayersFvMesh::update()
 
     movePoints(newPoints());
 
-/* Load balancing 
-
-    autoPtr<mapDistributePolyMesh> distMap;
-
-    if (Pstream::nProcs() > 1)
-    {
-        scalar nIdealCells =
-            mesh_.globalData().nTotalCells()
-          / Pstream::nProcs();
-
-        scalar unbalance = returnReduce
-        (
-            mag(1.0-mesh_.nCells()/nIdealCells),
-            maxOp<scalar>()
-        );
-
-        if (unbalance <= 0.5)
-        {
-            Info<< "Skipping balancing since max unbalance " << unbalance
-                << " is less than allowable 0.5"
-                << endl;
-        }
-        else
-        {
-            scalarField cellWeights(mesh_.nCells(), 1);
-
-            distMap = balance
-            (
-                false,  //keepZoneFaces
-                false,  //keepBaffles
-                cellWeights,
-                decomposer,
-                distributor
-            );
-        }
-    }
-*/
+    //balance();
 
     return true;
 }
